@@ -1,2 +1,3 @@
-# Cf-Vless
-电信千兆宽带专用，无订阅纯手搓
+Dedicated to telecom gigabit broadband, designed for high traffic and high load
+No subscription, handmade
+Client path format: /?ip=usip.vpndns.net
