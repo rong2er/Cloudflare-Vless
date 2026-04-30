@@ -3,14 +3,14 @@ import { connect } from 'cloudflare:sockets';
 const 小可爱文字解码器 = new TextDecoder('utf-8', { fatal: true });
 const 关门原因编码器 = new TextEncoder();
 const 关门原因解码器 = new TextDecoder();
-const 我的小甜甜身份证 = '88888888-8888-8888-8888-888888888888';  //修改为你的UUID
+const 我的小甜甜身份证 = '88888888-8888-8888-8888-888888888888';  //建议改成你的UUID
 const 身份证字节 = ((uuid) => {
   const hex = uuid.replace(/-/g, '');
   const arr = new Uint8Array(16);
   for (let i = 0; i < 16; i++) arr[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
   return arr;
 })(我的小甜甜身份证);
-const 默认备用小可爱地址 = 'usip.vpndns.net';  //修改为你的落地IP
+const 默认备用小可爱地址 = 'dsl253-007-079.nyc1.dsl.speakeasy.net';  //默认美国住宅IP，建议改成你的落地IP
 
 // ═══════════════════════════════════════════════════════════════════
 // ⚙️ 可调参数（千兆网络，二选一，默认启用【预设B：千兆日常】）
@@ -85,6 +85,39 @@ function 校验候选地址(候选地址) {
   return 候选地址;
 }
 
+// ================= 新增：Txt 读取与缓存模块 =================
+const txt缓存池 = new Map(); 
+const txt缓存生存期ms = 60 * 1000; // 60秒过期
+
+async function 获取动态地址(输入参数) {
+  if (!输入参数.includes('.txt') && !输入参数.includes('/')) {
+    return 校验候选地址(输入参数);
+  }
+  const 链接 = 输入参数.startsWith('http') ? 输入参数 : 'https://' + 输入参数;
+  const 当前时间 = Date.now();
+  const 缓存 = txt缓存池.get(链接);
+  if (缓存 && 当前时间 < 缓存.过期时间) {
+    return 缓存.目标地址;
+  }
+  try {
+    const 响应 = await fetch(链接, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+      cf: { cacheTtl: 5 }
+    });
+    if (响应.ok) {
+      let 文本 = await 响应.text();
+      文本 = 文本.replace(/[\r\n\s\uFEFF]/g, ''); 
+      const 校验结果 = 校验候选地址(文本);
+      if (校验结果 !== 默认备用小可爱地址) {
+        txt缓存池.set(链接, { 目标地址: 校验结果, 过期时间: 当前时间 + txt缓存生存期ms });
+        return 校验结果;
+      }
+    }
+  } catch (e) {}
+  return 缓存 ? 缓存.目标地址 : 默认备用小可爱地址;
+}
+// ============================================================
+
 export default {
   async fetch(来自外面的请求) {
     const 握手头 = 来自外面的请求.headers.get('Upgrade');
@@ -99,7 +132,7 @@ export default {
           候选地址 = decodeURIComponent(提取路径IP[1]);
         }
       }
-      return 升级成小可爱通道(校验候选地址(候选地址));
+      return 升级成小可爱通道(await 获取动态地址(候选地址));
     }
     return new Response('Not Found', { status: 404 });
   },
