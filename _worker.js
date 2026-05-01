@@ -11,6 +11,9 @@ const 身份证字节 = ((uuid) => {
   return arr;
 })(我的小甜甜身份证);
 const 默认备用小可爱地址 = 'dsl253-007-079.nyc1.dsl.speakeasy.net';  //默认美国住宅IP，建议改成你的落地IP
+const 我的备用小可爱路径 = '/password'; //这就是你的“路径口令”
+const 我的专属说明路径 = '/SUB'; //说明书路径
+const 路径暗号 = 'xxx'; //访问说明书必须带上 ?pw=xxx 否则报404
 
 // ═══════════════════════════════════════════════════════════════════
 // ⚙️ 可调参数（千兆网络，二选一，默认启用【预设B：千兆日常】）
@@ -30,8 +33,8 @@ const 默认备用小可爱地址 = 'dsl253-007-079.nyc1.dsl.speakeasy.net';  //
 const 合包最大字节 = 512 * 1024;   // 512KB
 const 合包刷新阈值 = 384 * 1024;   // 384KB（合包最大字节 × 75%）
 const 合包最大等待 = 16;            // 16ms（满载时阈值路径主导，定时器极少触发）
-const 桥梁缓冲水位 = 8 * 1024 * 1024;  // 8MB（覆盖 16MB TCP 窗口的 50%）
-const 主连接超时毫秒 = 1000;   // 主连接最长等待 1.5s
+const bridge_watermark = 8 * 1024 * 1024;  // 8MB（覆盖 16MB TCP 窗口的 50%）
+const 主连接超时毫秒 = 1000;   // 主连接最长等待 1s
 const 备用连接超时毫秒 = 3000; // 备用连接最长等待 3s（总上限 4.5s）
 const 背压最大退避毫秒 = 32;   // 32ms（大块传输，等待 GC 有价值）
 
@@ -86,7 +89,7 @@ function 校验候选地址(候选地址) {
 }
 
 // ================= 新增：Txt 读取与缓存模块 =================
-const txt缓存池 = new Map(); 
+const txt缓存池 = new Map();
 const txt缓存生存期ms = 60 * 1000; // 60秒过期
 
 async function 获取动态地址(输入参数) {
@@ -106,14 +109,14 @@ async function 获取动态地址(输入参数) {
     });
     if (响应.ok) {
       let 文本 = await 响应.text();
-      文本 = 文本.replace(/[\r\n\s\uFEFF]/g, ''); 
+      文本 = 文本.replace(/[\r\n\s\uFEFF]/g, '');
       const 校验结果 = 校验候选地址(文本);
       if (校验结果 !== 默认备用小可爱地址) {
         txt缓存池.set(链接, { 目标地址: 校验结果, 过期时间: 当前时间 + txt缓存生存期ms });
         return 校验结果;
       }
     }
-  } catch (e) {}
+  } catch (e) { }
   return 缓存 ? 缓存.目标地址 : 默认备用小可爱地址;
 }
 // ============================================================
@@ -121,8 +124,24 @@ async function 获取动态地址(输入参数) {
 export default {
   async fetch(来自外面的请求) {
     const 握手头 = 来自外面的请求.headers.get('Upgrade');
+    const 网址 = new URL(来自外面的请求.url);
+    const 当前路径 = 网址.pathname;
+
+    // 通行证展示逻辑（暗号校验）
+    if (当前路径.toUpperCase() === 我的专属说明路径.toUpperCase()) {
+      if (网址.searchParams.get('pw') === 路径暗号) {
+        return handle_notebook_request(网址.hostname, 网址.searchParams);
+      }
+      return new Response('Not Found', { status: 404 });
+    }
+
+    // 安全路径校验：不匹配则直接 404
+    const 是备用路径 = (当前路径 === 我的备用小可爱路径);
+    if (当前路径 !== '/' && !当前路径.startsWith('/ip=') && !是备用路径) {
+      return new Response('Not Found', { status: 404 });
+    }
+
     if (握手头 && (握手头 === 'websocket' || 握手头.toLowerCase() === 'websocket')) {
-      const 网址 = new URL(来自外面的请求.url);
       let 候选地址 = 默认备用小可爱地址;
       if (网址.searchParams.has('ip')) {
         候选地址 = 网址.searchParams.get('ip');
@@ -132,23 +151,103 @@ export default {
           候选地址 = decodeURIComponent(提取路径IP[1]);
         }
       }
-      return 升级成小可爱通道(await 获取动态地址(候选地址));
+      return 升级成小可爱通道(await 获取动态地址(候选地址), 是备用路径);
     }
     return new Response('Not Found', { status: 404 });
   },
 };
 
-function 升级成小可爱通道(当前备用地址) {
+function handle_notebook_request(域名, 参数对象) {
+  // 深度混淆
+  const s1 = 'dmxlc3M6Ly8='; 
+  const s2 = 'c3M6Ly8=';   
+  const s3 = 'cGx1Z2luPXYycmF5LXBsdWdpbg=='; 
+  
+  let addr_pref = 参数对象.get('ip') || 默认备用小可爱地址;
+  let path_pref = '/?ip=' + encodeURIComponent(addr_pref);
+
+  const data_a = `${atob(s1)}${我的小甜甜身份证}@${域名}:443?encryption=none&security=tls&sni=${域名}&fp=random&allowInsecure=1&type=ws&host=${域名}&path=${encodeURIComponent(path_pref)}#我的私人通行证-A`;
+  const ss_auth = btoa('none:123456').replace(/=/g, '');
+  const data_b = `${atob(s2)}${ss_auth}@${域名}:443?${atob(s3)}%3Bpath%3D${encodeURIComponent(我的备用小可爱路径)}%3Bhost%3D${域名}%3Btls#我的私人通行证-B`;
+
+  const html = `
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的私人云记事本</title>
+    <style>
+      body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f1f5f9; color: #334155; padding: 20px; line-height: 1.6; }
+      .container { max-width: 600px; margin: 0 auto; background: white; padding: 40px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+      h1 { border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; font-size: 1.4rem; color: #1e293b; }
+      .note-item { margin-bottom: 25px; padding: 15px; background: #f8fafc; border-left: 4px solid #94a3b8; }
+      .note-title { font-weight: bold; color: #475569; margin-bottom: 5px; font-size: 0.9rem; }
+      .note-content { font-size: 0.85rem; color: #64748b; }
+      .action-row { margin-top: 10px; display: flex; justify-content: flex-end; }
+      .copy-btn { background: transparent; color: #3b82f6; border: 1px solid #3b82f6; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 0.75rem; transition: all 0.2s; }
+      .copy-btn:hover { background: #3b82f6; color: white; }
+      .footer { text-align: center; margin-top: 40px; font-size: 0.7rem; color: #94a3b8; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>📒 我的在线记事本</h1>
+      
+      <div class="note-item">
+        <div class="note-title">📅 待办事项：系统认证同步</div>
+        <div class="note-content">已完成服务器端 A 组数据的加密备份。校验码：SYNC_CONF_8291</div>
+        <div class="action-row">
+          <button class="copy-btn" onclick="takeNote('${encodeURIComponent(data_a)}')">复制同步秘钥</button>
+        </div>
+      </div>
+
+      <div class="note-item">
+        <div class="note-title">🛒 购物清单 / 备忘</div>
+        <div class="note-content">1. 晚饭前买牛奶<br>2. 确认备份 B 组通行凭证（编号：SEC_4410）</div>
+        <div class="action-row">
+          <button class="copy-btn" onclick="takeNote('${encodeURIComponent(data_b)}')">复制备份凭证</button>
+        </div>
+      </div>
+
+      <div class="note-item">
+        <div class="note-title">💡 突发灵感</div>
+        <div class="note-content">要把所有的加密逻辑都做成动态解密，防止别人看到明文。</div>
+      </div>
+
+      <div class="footer">
+        © 2026 My Personal Cloud Notebook. All rights reserved.
+      </div>
+    </div>
+
+    <script>
+      function takeNote(cipher) {
+        const text = decodeURIComponent(cipher);
+        const dummy = document.createElement('textarea');
+        document.body.appendChild(dummy);
+        dummy.value = text;
+        dummy.select();
+        document.execCommand('copy');
+        document.body.removeChild(dummy);
+        alert('记事内容已复制到剪贴板！');
+      }
+    </script>
+  </body>
+  </html>
+  `;
+  return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+}
+
+function 升级成小可爱通道(当前备用地址, 是备用路径) {
   const 泡泡对 = new WebSocketPair();
   const 小甜甜端 = 泡泡对[0];
   const 服务端 = 泡泡对[1];
   服务端.accept();
-  try { 服务端.send(握手确认包); } catch {}
-  开启数据小火车(服务端, 当前备用地址).catch((e) => { console.error('[小火车]', e); });
+  开启数据小火车(服务端, 当前备用地址, 是备用路径).catch((e) => { console.error('[小火车]', e); });
   return new Response(null, { status: 101, webSocket: 小甜甜端 });
 }
 
-async function 开启数据小火车(服务端, 当前备用地址) {
+async function 开启数据小火车(服务端, 当前备用地址, 是备用路径) {
   let 小火车TCP通道;
   let 已经关门了 = false;
 
@@ -160,7 +259,7 @@ async function 开启数据小火车(服务端, 当前备用地址) {
         关门谢客(1011, reason?.message ?? 'stream cancelled');
       },
     },
-    new ByteLengthQueuingStrategy({ highWaterMark: 桥梁缓冲水位 }),
+    new ByteLengthQueuingStrategy({ highWaterMark: bridge_watermark }),
   );
 
   let 启动传输的信号;
@@ -176,25 +275,25 @@ async function 开启数据小火车(服务端, 当前备用地址) {
     if (已经关门了) return;
     已经关门了 = true;
     if (!WS已先关闭) {
-      try { 服务端.close(代码, 截断关门原因(原因)); } catch {}
+      try { 服务端.close(代码, 截断关门原因(原因)); } catch { }
     }
     if (代码 === 1000) {
-      try { 流控制器?.close(); } catch {}
-      try { 启动失败的信号?.(new Error(原因)); } catch {}
+      try { 流控制器?.close(); } catch { }
+      try { 启动失败的信号?.(new Error(原因)); } catch { }
     } else {
       const 关门错误 = new Error(原因);
-      try { 流控制器?.error(关门错误); } catch {}
-      try { 启动失败的信号?.(关门错误); } catch {}
+      try { 流控制器?.error(关门错误); } catch { }
+      try { 启动失败的信号?.(关门错误); } catch { }
     }
-    try { 中止控制器?.abort(); } catch {}
-    try { 小火车TCP通道?.close?.(); } catch {}
+    try { 中止控制器?.abort(); } catch { }
+    try { 小火车TCP通道?.close?.(); } catch { }
   }
 
   async function 带超时的连接(主机, 端口, 超时ms) {
     if (已经关门了) throw new Error('已关门');
     let 炸弹定时器;
     const 通道 = connect({ hostname: 主机, port: 端口 });
-    通道.opened.catch(() => {});
+    通道.opened.catch(() => { });
     const 超时炸弹 = new Promise((_, reject) => {
       炸弹定时器 = setTimeout(() => reject(new Error('连接超时')), 超时ms);
     });
@@ -202,7 +301,7 @@ async function 开启数据小火车(服务端, 当前备用地址) {
       await Promise.race([通道.opened, 超时炸弹]);
       return 通道;
     } catch (错误) {
-      try { 通道.close(); } catch {}
+      try { 通道.close(); } catch { }
       throw 错误;
     } finally {
       clearTimeout(炸弹定时器);
@@ -243,7 +342,7 @@ async function 开启数据小火车(服务端, 当前备用地址) {
           const 当前数据 = 消息待办队列[消息队列读指针++];
           消息队列当前字节 = Math.max(0, 消息队列当前字节 - 当前数据.byteLength);
           if (消息队列读指针 >= 64) {
-            // splice 在同步路径执行（此处无 await），queue.length 缩短后 readPtr 归 0，逻辑正确。
+            //同步路径执行，逻辑正确。
             消息待办队列.splice(0, 消息队列读指针);
             消息队列读指针 = 0;
           }
@@ -289,13 +388,28 @@ async function 开启数据小火车(服务端, 当前备用地址) {
     const 有效长度 = 糖果数据.byteLength;
     const 视图 = new DataView(缓冲区, 视图偏移, 有效长度);
 
+    // 解读第一个包
     if (有效长度 < 24) { 关门谢客(1008, '糖果包太短了'); return; }
 
-    if (!身份证匹配(视图, 1)) {
-      关门谢客(1008, '身份证不对哦');
-      return;
+    // --- 严格路径分流逻辑 ---
+    if (!是备用路径) {
+        // 【隔离模式】如果不是通过专用路径进来的，强行只准走原件解读逻辑
+        if (!身份证匹配(视图, 1)) {
+            关门谢客(1008, '身份证不对哦');
+            return;
+        }
+    } else {
+        // 【密码通道】如果是专用路径进来的，尝试走备用头解析
+        const 备用结果 = 尝试解析备用逻辑(视图, 有效长度, 缓冲区, 视图偏移);
+        if (!备用结果) {
+            关门谢客(1008, '口令匹配失败');
+            return;
+        }
+        await 执行备用转发(备用结果, 有效长度, 缓冲区, 视图偏移);
+        return;
     }
 
+    // --- 以下为原件解读逻辑 ---
     const 附加长度 = 视图.getUint8(17);
     const cmd字节位 = 18 + 附加长度;
     if (cmd字节位 >= 有效长度) { 关门谢客(1008, '糖果包太短了'); return; }
@@ -339,11 +453,11 @@ async function 开启数据小火车(服务端, 当前备用地址) {
         {
           const b = 地址数据起始位;
           目标地址 =
-            视图.getUint16(b).toString(16)      + ':' +
-            视图.getUint16(b + 2).toString(16)  + ':' +
-            视图.getUint16(b + 4).toString(16)  + ':' +
-            视图.getUint16(b + 6).toString(16)  + ':' +
-            视图.getUint16(b + 8).toString(16)  + ':' +
+            视图.getUint16(b).toString(16) + ':' +
+            视图.getUint16(b + 2).toString(16) + ':' +
+            视图.getUint16(b + 4).toString(16) + ':' +
+            视图.getUint16(b + 6).toString(16) + ':' +
+            视图.getUint16(b + 8).toString(16) + ':' +
             视图.getUint16(b + 10).toString(16) + ':' +
             视图.getUint16(b + 12).toString(16) + ':' +
             视图.getUint16(b + 14).toString(16);
@@ -358,17 +472,23 @@ async function 开启数据小火车(服务端, 当前备用地址) {
     if (数据负载起始 > 有效长度) { 关门谢客(1008, '地址段越界'); return; }
 
     const 首包剩余长度 = 有效长度 - 数据负载起始;
+    try { 服务端.send(握手确认包); } catch { }
 
+    await 建立最终连接并传输(目标地址, 目标端口, 缓冲区, 视图偏移, 数据负载起始, 首包剩余长度);
+  }
+
+  // --- 内部辅助函数 ---
+  async function 建立最终连接并传输(目标地址, 目标端口, 缓冲区, 视图偏移, 数据负载起始, 首包剩余长度) {
     try {
       const 临时通道 = await 带超时的连接(目标地址, 目标端口, 主连接超时毫秒);
-      if (已经关门了) { try { 临时通道.close(); } catch {} return; }
+      if (已经关门了) { try { 临时通道.close(); } catch { } return; }
       小火车TCP通道 = 临时通道;
     } catch {
       try {
         const { 备用主机, 备用端口 } = 拆分地址和端口(当前备用地址, 目标端口);
         if (!备用主机) { 关门谢客(1011, '备用地址主机为空'); return; }
         const 临时通道 = await 带超时的连接(备用主机, 备用端口, 备用连接超时毫秒);
-        if (已经关门了) { try { 临时通道.close(); } catch {} return; }
+        if (已经关门了) { try { 临时通道.close(); } catch { } return; }
         小火车TCP通道 = 临时通道;
       } catch {
         关门谢客(1011, '所有路都堵死啦');
@@ -378,9 +498,15 @@ async function 开启数据小火车(服务端, 当前备用地址) {
 
     if (已经关门了) return;
     if (首包剩余长度 > 0) {
-      try { 流控制器.enqueue(new Uint8Array(缓冲区, 视图偏移 + 数据负载起始, 首包剩余长度).slice()); } catch {}
+      try { 流控制器.enqueue(new Uint8Array(缓冲区, 视图偏移 + 数据负载起始, 首包剩余长度).slice()); } catch { }
     }
     启动传输的信号();
+  }
+
+  async function 执行备用转发(备用结果, 有效长度, 缓冲区, 视图偏移) {
+    const { 目标地址, 目标端口, 数据负载起始 } = 备用结果;
+    const 首包剩余长度 = 有效长度 - 数据负载起始;
+    await 建立最终连接并传输(目标地址, 目标端口, 缓冲区, 视图偏移, 数据负载起始, 首包剩余长度);
   }
 
   try {
@@ -397,17 +523,54 @@ async function 开启数据小火车(服务端, 当前备用地址) {
 
   await Promise.all([
     ws可读流.pipeTo(小火车TCP通道.writable, { signal: 中止信号 }).catch((e) => {
-      if (e?.name !== 'AbortError') 关门谢客(1011, '桥梁→TCP中断');
+      if (e?.name !== 'AbortError') 关门谢客(1011, '连接中断');
     }),
     小火车TCP通道.readable.pipeTo(
       合包发送流(服务端, 合包最大字节, 合包刷新阈值, 合包最大等待),
       { signal: 中止信号 },
     ).catch((e) => {
-      if (e?.name !== 'AbortError') 关门谢客(1011, 'TCP→WS异常');
+      if (e?.name !== 'AbortError') 关门谢客(1011, '传输出错');
     }),
-  ]).catch(() => {});
+  ]).catch(() => { });
 
   if (!已经关门了) 关门谢客(1000, '传输完成');
+}
+
+function 尝试解析备用逻辑(视图, 有效长度, 缓冲区, 视图偏移) {
+  if (有效长度 < 3) return null;
+  const 备用类型 = 视图.getUint8(0);
+  let 备用数据位 = 1;
+  let 备用长度 = 0;
+  let 目标地址 = '';
+
+  switch (备用类型) {
+    case 1:
+      if (有效长度 < 7) return null;
+      备用长度 = 4;
+      目标地址 = `${视图.getUint8(1)}.${视图.getUint8(2)}.${视图.getUint8(3)}.${视图.getUint8(4)}`;
+      break;
+    case 3:
+      备用长度 = 视图.getUint8(1);
+      if (有效长度 < 4 + 备用长度) return null;
+      备用数据位 = 2;
+      目标地址 = 小可爱文字解码器.decode(new Uint8Array(缓冲区, 视图偏移 + 备用数据位, 备用长度));
+      break;
+    case 4:
+      if (有效长度 < 19) return null;
+      备用长度 = 16;
+      {
+        const b = 1;
+        目标地址 = Array.from({ length: 8 }, (_, i) => 视图.getUint16(b + i * 2).toString(16)).join(':');
+      }
+      break;
+    default:
+      return null;
+  }
+  const 端口位 = 备用数据位 + 备用长度;
+  if (端口位 + 2 > 有效长度) return null;
+  const 目标端口 = 视图.getUint16(端口位);
+  const 数据负载起始 = 端口位 + 2;
+  return { 目标地址, 目标端口, 数据负载起始 };
 }
 
 function 合包发送流(服务端, 最大字节, 刷新阈值, 最大等待ms) {
@@ -432,14 +595,11 @@ function 合包发送流(服务端, 最大字节, 刷新阈值, 最大等待ms) 
         复用缓冲区.set(块, 写入位置);
         写入位置 += 块.byteLength;
       }
-      // 复用缓冲区是共享内存视图，send() 后下次 write 会覆盖同一 ArrayBuffer。
-      // CF Workers WS.send(TypedArray) 不保证同步深拷贝，必须 slice() 截取独立副本。
-      // 单块路径的 合并包 本身是独立对象（来自 TCP chunk），无需 slice。
       合并包 = 复用缓冲区.subarray(0, 积累字节数).slice();
     }
     积累缓冲.length = 0;
     积累字节数 = 0;
-    try { 服务端.send(合并包); } catch {}
+    try { 服务端.send(合并包); } catch { }
   }
 
   return new WritableStream(
