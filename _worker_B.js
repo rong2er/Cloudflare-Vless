@@ -3,17 +3,17 @@ import { connect } from 'cloudflare:sockets';
 const 小可爱文字解码器 = new TextDecoder('utf-8', { fatal: true });
 const 关门原因编码器 = new TextEncoder();
 const 关门原因解码器 = new TextDecoder();
-const 我的小甜甜身份证 = 'd060c3c7-a4e3-4dd0-8775-59434ee8e4e3';  //建议改成你的UUID
+const 我的小甜甜身份证 = '88888888-8888-8888-8888-888888888888';  //建议改成你的UUID
 const 身份证字节 = ((uuid) => {
   const hex = uuid.replace(/-/g, '');
   const arr = new Uint8Array(16);
   for (let i = 0; i < 16; i++) arr[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
   return arr;
 })(我的小甜甜身份证);
-const 默认备用小可爱地址 = 'proxy.xxxxxxxx.tk:50001';  //默认美国住宅IP，建议改成你的落地IP
-const 我的备用小可爱路径 = '/NVzhaZ6aVsZ0DsFQCyrF'; //这就是你的“路径口令”
+const 默认备用小可爱地址 = 'dsl253-007-079.nyc1.dsl.speakeasy.net';  //默认美国住宅IP，建议改成你的落地IP
+const 我的备用小可爱路径 = '/XXX'; //这就是你的“路径口令”
 const 我的专属说明路径 = '/SUB'; //说明书路径
-const 路径暗号 = '123321'; //访问说明书必须带上 ?pw=123 否则报404
+const 路径暗号 = 'XXX'; //访问说明书必须带上 ?pw=XXX 否则报404
 
 // ═══════════════════════════════════════════════════════════════════
 // ⚙️ 可调参数（千兆网络，二选一，默认启用【预设B：千兆日常】）
